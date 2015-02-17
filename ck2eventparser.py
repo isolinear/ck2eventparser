@@ -71,7 +71,7 @@ class CK2EventParser(object):
                     toks[0][1] = loc_parser.strings[tok[1]][0]
                 return toks
             elif tok[0] == "trigger":
-                print "TRIGGER", tok, s, l, s[l:pp.getTokensEndLoc()]
+                #print "TRIGGER", tok, s, l, s[l:pp.getTokensEndLoc()]
                 if self.callbacks and self.callbacks.get("event_trigger_callback"):
                     self.callbacks["event_trigger_callback"](s[l:pp.getTokensEndLoc()])
                 #return toks
@@ -116,9 +116,9 @@ class CK2Event(object):
         return "<CK2Event e_type=%s text=%s>" % (self.e_type, self.raw[:16].encode('utf-8'))
 
     def trigger_callback(self, trigger_text):
-        print "called into here with", trigger_text
+        #print "called into here with", trigger_text
         self.trigger = trigger_text
-        print "after setting:", self.trigger
+        #print "after setting:", self.trigger
 
 
 # def convert_to_dict(result):
@@ -158,7 +158,7 @@ def parse_event_file(path):
         print event.e_type, " = "
         pprint.pprint(event.data)
         print "RAW TRIGGER ", event.trigger
-        print event.raw
+        #print event.raw
     return results
 
 
