@@ -1,10 +1,14 @@
 from pyparsing import *
-import pprint
+import logging, pprint
 import ck2locparser
+
+logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d %I:%M:%S %p', level=logging.INFO)
+
+loc_parser = None
 
 class CK2EventParser(object):
 
-    def __init__(self, localization_dir="localisation"):
+    def __init__(self):
         super(CK2EventParser, self).__init__()
         self.pd_text = Forward()
         self.pd_string = dblQuotedString.setParseAction(removeQuotes)
@@ -25,15 +29,18 @@ class CK2EventParser(object):
         self.pd_comment = pythonStyleComment
         self.pd_event.ignore(self.pd_comment)
         self.pd_number.setParseAction(self.__class__.convert_numbers)
-        if localization_dir:
-            self.loc_parser = ck2locparser.LocalizationParser(localization_dir)
-            self.pd_entry.setParseAction(self.insert_english_strings)
+
 
     @property
     def parse_element(self):
         return self.pd_event
 
-    def parse(self, text, as_list=True):
+    def parse(self, text, as_list=True, use_localization_dir=None):
+        if use_localization_dir:
+            global loc_parser
+            if (not loc_parser) or (loc_parser.localization_dir != use_localization_dir):
+                loc_parser = ck2locparser.LocalizationParser(use_localization_dir)
+            self.pd_entry.setParseAction(self.insert_english_strings)
         results = self.parse_element.parseString(text)
         if as_list:
             return results.asList()
@@ -48,21 +55,21 @@ class CK2EventParser(object):
             return float(n)
 
     def insert_english_strings(self, s, l, toks):
+        global loc_parser
         tok = toks[0]
         if hasattr(tok, "__len__"):
             if isinstance(l, basestring):
                 pass
             elif len(tok) >= 2 and (tok[0] == 'name' or tok[0] == 'desc'):
-                if not self.loc_parser:
+                if not loc_parser:
                     raise ValueError("Need to specify a localization file parser")
                 # print "TOK", tok[0], tok[1], locparser.strings[tok[1]][0].encode("iso-8859-1")
-                if self.loc_parser.strings.get(tok[1]):
-                    toks[0][1] = self.loc_parser.strings[tok[1]][0]
+                if loc_parser.strings.get(tok[1]):
+                    toks[0][1] = loc_parser.strings[tok[1]][0]
                 return toks
 
 
 class CK2TopLevelEventParser(CK2EventParser):
-
 
     def __init__(self):
         super(CK2TopLevelEventParser, self).__init__()
@@ -88,6 +95,18 @@ class CK2EventValueParser(CK2EventParser):
     @property
     def parse_element(self):
         return self.pd_value
+
+
+class CK2Event(object):
+
+    def __init__(self, e_type, text):
+        self.e_type = e_type
+        parser = CK2EventValueParser()
+        self.data = parser.parse(text, use_localization_dir="localisation")
+        self.raw = text
+
+    def __repr__(self):
+        return "<CK2Event e_type=%s text=%s>" % (self.e_type, self.raw[:16].encode('utf-8'))
 
 
 # def convert_to_dict(result):
@@ -120,12 +139,11 @@ def parse_event_file(path):
     event_text = event_text.replace('\xa0', ' ')
     top_parser = CK2TopLevelEventParser()
     results = top_parser.parse(event_text)
-    event_parser = CK2EventValueParser()
+    #event_parser = CK2EventValueParser()
     for result in results:
-        name = result[0]
-        print "%s = " % (name)
-        event_data = event_parser.parse(result[1])
-        pprint.pprint(event_data)
+        event_data = CK2Event(result[0], result[1])
+        print event_data.e_type, " = "
+        pprint.pprint(event_data.data)
     return results
 
 

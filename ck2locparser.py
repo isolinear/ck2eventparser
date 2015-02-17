@@ -8,6 +8,7 @@ class LocalizationParser(object):
 
     def __init__(self, localization_dir=None):
         self.strings = {}
+        self.localization_dir = localization_dir
         if localization_dir:
             for f in os.listdir(localization_dir):
                 filepath = os.path.join(localization_dir,f)
