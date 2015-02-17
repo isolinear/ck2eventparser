@@ -1,4 +1,5 @@
 from pyparsing import *
+import pyparsing as pp
 import logging, pprint
 import ck2locparser
 
@@ -29,13 +30,15 @@ class CK2EventParser(object):
         self.pd_comment = pythonStyleComment
         self.pd_event.ignore(self.pd_comment)
         self.pd_number.setParseAction(self.__class__.convert_numbers)
+        self.callbacks = {}
 
 
     @property
     def parse_element(self):
         return self.pd_event
 
-    def parse(self, text, as_list=True, use_localization_dir=None):
+    def parse(self, text, as_list=True, use_localization_dir=None, **kwargs):
+        self.callbacks = kwargs
         if use_localization_dir:
             global loc_parser
             if (not loc_parser) or (loc_parser.localization_dir != use_localization_dir):
@@ -67,7 +70,11 @@ class CK2EventParser(object):
                 if loc_parser.strings.get(tok[1]):
                     toks[0][1] = loc_parser.strings[tok[1]][0]
                 return toks
-
+            elif tok[0] == "trigger":
+                print "TRIGGER", tok, s, l, s[l:pp.getTokensEndLoc()]
+                if self.callbacks and self.callbacks.get("event_trigger_callback"):
+                    self.callbacks["event_trigger_callback"](s[l:pp.getTokensEndLoc()])
+                #return toks
 
 class CK2TopLevelEventParser(CK2EventParser):
 
@@ -100,13 +107,18 @@ class CK2EventValueParser(CK2EventParser):
 class CK2Event(object):
 
     def __init__(self, e_type, text):
+        self.id = ""
         self.e_type = e_type
-        parser = CK2EventValueParser()
-        self.data = parser.parse(text, use_localization_dir="localisation")
         self.raw = text
+        self.trigger = ""
 
     def __repr__(self):
         return "<CK2Event e_type=%s text=%s>" % (self.e_type, self.raw[:16].encode('utf-8'))
+
+    def trigger_callback(self, trigger_text):
+        print "called into here with", trigger_text
+        self.trigger = trigger_text
+        print "after setting:", self.trigger
 
 
 # def convert_to_dict(result):
@@ -139,11 +151,14 @@ def parse_event_file(path):
     event_text = event_text.replace('\xa0', ' ')
     top_parser = CK2TopLevelEventParser()
     results = top_parser.parse(event_text)
-    #event_parser = CK2EventValueParser()
+    event_parser = CK2EventValueParser()
     for result in results:
-        event_data = CK2Event(result[0], result[1])
-        print event_data.e_type, " = "
-        pprint.pprint(event_data.data)
+        event = CK2Event(result[0], result[1])
+        event.data = event_parser.parse(result[1], use_localization_dir="localisation", event_trigger_callback=event.trigger_callback)
+        print event.e_type, " = "
+        pprint.pprint(event.data)
+        print "RAW TRIGGER ", event.trigger
+        print event.raw
     return results
 
 
