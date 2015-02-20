@@ -30,20 +30,19 @@ class CK2EventParser(object):
         self.pd_comment = pythonStyleComment
         self.pd_event.ignore(self.pd_comment)
         self.pd_number.setParseAction(self.__class__.convert_numbers)
-        self.callbacks = {}
+        self.callbacks = {"trigger":None, "option":None}
 
 
     @property
     def parse_element(self):
         return self.pd_event
 
-    def parse(self, text, as_list=True, use_localization_dir=None, **kwargs):
-        self.callbacks = kwargs
+    def parse(self, text, as_list=True, use_localization_dir=None):
         if use_localization_dir:
             global loc_parser
             if (not loc_parser) or (loc_parser.localization_dir != use_localization_dir):
                 loc_parser = ck2locparser.LocalizationParser(use_localization_dir)
-            self.pd_entry.setParseAction(self.insert_english_strings)
+            self.pd_entry.setParseAction(self.postprocess)
         results = self.parse_element.parseString(text)
         if as_list:
             return results.asList()
@@ -57,7 +56,7 @@ class CK2EventParser(object):
         except ValueError, ve:
             return float(n)
 
-    def insert_english_strings(self, s, l, toks):
+    def postprocess(self, s, l, toks):
         global loc_parser
         tok = toks[0]
         if hasattr(tok, "__len__"):
@@ -70,11 +69,15 @@ class CK2EventParser(object):
                 if loc_parser.strings.get(tok[1]):
                     toks[0][1] = loc_parser.strings[tok[1]][0]
                 return toks
-            elif tok[0] == "trigger":
-                #print "TRIGGER", tok, s, l, s[l:pp.getTokensEndLoc()]
-                if self.callbacks and self.callbacks.get("event_trigger_callback"):
-                    self.callbacks["event_trigger_callback"](s[l:pp.getTokensEndLoc()])
-                #return toks
+            elif tok[0] in self.callbacks:
+                if self.callbacks.get(tok[0]):
+                    self.callbacks[tok[0]](s[l:pp.getTokensEndLoc()])
+
+    def register_callback(self, key, handler):
+        if key in self.callbacks:
+            self.callbacks[key] = handler
+        else:
+            raise ValueError("Not a supported callback endpoint.  Supported endpoints are %s" % (','.join(self.callbacks.keys())))
 
 class CK2TopLevelEventParser(CK2EventParser):
 
@@ -110,15 +113,19 @@ class CK2Event(object):
         self.id = ""
         self.e_type = e_type
         self.raw = text
-        self.trigger = ""
+        self.trigger_text = ""
+        self.options = []
 
     def __repr__(self):
         return "<CK2Event e_type=%s text=%s>" % (self.e_type, self.raw[:16].encode('utf-8'))
 
     def trigger_callback(self, trigger_text):
         #print "called into here with", trigger_text
-        self.trigger = trigger_text
+        self.trigger_text = trigger_text
         #print "after setting:", self.trigger
+
+    def options_callback(self, options_text):
+        self.options.append(options_text)
 
 
 # def convert_to_dict(result):
@@ -154,11 +161,15 @@ def parse_event_file(path):
     event_parser = CK2EventValueParser()
     for result in results:
         event = CK2Event(result[0], result[1])
-        event.data = event_parser.parse(result[1], use_localization_dir="localisation", event_trigger_callback=event.trigger_callback)
+        event_parser.register_callback("trigger", event.trigger_callback)
+        event_parser.register_callback("option", event.options_callback)
+        event.data = event_parser.parse(result[1],
+                                        use_localization_dir="localisation"
+        )
         print event.e_type, " = "
         pprint.pprint(event.data)
-        print "RAW TRIGGER ", event.trigger
-        #print event.raw
+        print "RAW TRIGGER ", event.trigger_text
+        print event.options
     return results
 
 
