@@ -30,7 +30,7 @@ class CK2EventParser(object):
         self.pd_comment = pythonStyleComment
         self.pd_event.ignore(self.pd_comment)
         self.pd_number.setParseAction(self.__class__.convert_numbers)
-        self.callbacks = {"trigger":None, "option":None}
+        self.callbacks = {"trigger":None, "option":None, "mean_time_to_happen":None}
 
 
     @property
@@ -62,7 +62,7 @@ class CK2EventParser(object):
         if hasattr(tok, "__len__"):
             if isinstance(l, basestring):
                 pass
-            elif len(tok) >= 2 and (tok[0] == 'name' or tok[0] == 'desc'):
+            elif len(tok) >= 2 and (tok[0] == 'name' or tok[0] == 'desc' or tok[0]=='tooltip' or tok[0] == 'text'):
                 if not loc_parser:
                     raise ValueError("Need to specify a localization file parser")
                 # print "TOK", tok[0], tok[1], locparser.strings[tok[1]][0].encode("iso-8859-1")
@@ -115,6 +115,7 @@ class CK2Event(object):
         self.raw = text
         self.trigger_text = ""
         self.options = []
+        self.data = None
 
     def __repr__(self):
         return "<CK2Event e_type=%s text=%s>" % (self.e_type, self.raw[:16].encode('utf-8'))
@@ -127,6 +128,8 @@ class CK2Event(object):
     def options_callback(self, options_text):
         self.options.append(options_text)
 
+    def mtth_callback(self, mtth_text):
+        self.mtth = mtth_text
 
 # def convert_to_dict(result):
 #     return [convert_list_of_lists_to_dict(l) for l in result]
@@ -152,7 +155,7 @@ class CK2Event(object):
 
 
 
-def parse_event_file(path):
+def parse_event_file(path, localization_dir="localisation"):
     event_text = open(path, "rb").read()
     event_text = event_text.replace('\xe2', ' ')
     event_text = event_text.replace('\xa0', ' ')
@@ -163,8 +166,9 @@ def parse_event_file(path):
         event = CK2Event(result[0], result[1])
         event_parser.register_callback("trigger", event.trigger_callback)
         event_parser.register_callback("option", event.options_callback)
+        event_parser.register_callback("mean_time_to_happen", event.mtth_callback)
         event.data = event_parser.parse(result[1],
-                                        use_localization_dir="localisation"
+                                        use_localization_dir=localization_dir
         )
         print event.e_type, " = "
         pprint.pprint(event.data)
@@ -175,7 +179,10 @@ def parse_event_file(path):
 
 if __name__ == "__main__":
     import sys
-    results = parse_event_file(sys.argv[1])
+    localization_dir = None
+    if len(sys.argv) > 2:
+        localization_dir = sys.argv[2]
+    results = parse_event_file(sys.argv[1], localization_dir)
     #pprint.pprint(results.asList())
     #results2 = convert_to_dict(results.asList())
     #pprint.pprint(results2)
