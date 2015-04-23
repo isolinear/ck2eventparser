@@ -13,8 +13,9 @@ class CK2EventParser(object):
         super(CK2EventParser, self).__init__()
         self.pd_text = Forward()
         self.pd_string = dblQuotedString.setParseAction(removeQuotes)
-        self.pd_symbol = Word(alphanums + "_" + "-" + ".")
-        self.pd_text << ( self.pd_string | self.pd_symbol )
+        self.pd_symbol = Word(alphanums + "_" + "-" + "." + ":")
+        self.pd_reference = Suppress('[') + Optional(self.pd_symbol) + Suppress(']')
+        self.pd_text << ( self.pd_string | self.pd_symbol | self.pd_reference)
         self.pd_number = Combine(Optional('-') + ( '0' | Word('123456789', nums) ) +
                             Optional('.' + Word(nums)) +
                             Optional(Word('eE', exact=1) + Word(nums + '+-', nums)))
@@ -24,9 +25,10 @@ class CK2EventParser(object):
         self.pd_dict = Forward()
         self.pd_entry = Group(self.pd_symbol + Suppress('=') + self.pd_value)
         self.pd_event << delimitedList(self.pd_entry, delim=LineEnd())
-        self.pd_value << ( self.pd_number | self.pd_text | self.pd_dict )
-        self.pd_multi_simple_values = delimitedList(self.pd_entry, delim=White(' '))
-        self.pd_dict << Suppress('{') + Optional(self.pd_multi_simple_values) + Optional(self.pd_event) + Suppress('}')
+        self.pd_multi_simple_values = Suppress('{') + delimitedList(self.pd_entry, delim=White(' ')) + Suppress('}')
+        self.pd_multi_simple_numbers = Suppress('{') + delimitedList(self.pd_number, delim=White(' ')) + Suppress('}')
+        self.pd_value << ( self.pd_number | self.pd_text | self.pd_dict | self.pd_multi_simple_values | self.pd_multi_simple_numbers)
+        self.pd_dict << Suppress('{') + Optional(self.pd_event) + Suppress('}')
         self.pd_comment = pythonStyleComment
         self.pd_event.ignore(self.pd_comment)
         self.pd_number.setParseAction(self.__class__.convert_numbers)
