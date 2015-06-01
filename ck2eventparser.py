@@ -70,6 +70,8 @@ class CK2EventParser(object):
                 # print "TOK", tok[0], tok[1], locparser.strings[tok[1]][0].encode("iso-8859-1")
                 if loc_parser.strings.get(tok[1]):
                     toks[0][1] = loc_parser.strings[tok[1]][0]
+                else:
+                    logging.warning("failed to find the token %s" % (tok[1]))
                 return toks
             elif tok[0] in self.callbacks:
                 if self.callbacks.get(tok[0]):
@@ -174,8 +176,8 @@ def parse_event_file(path, localization_dir="localisation"):
         )
         print event.e_type, " = "
         pprint.pprint(event.data)
-        print "RAW TRIGGER ", event.trigger_text
-        print event.options
+        #print "RAW TRIGGER ", event.trigger_text
+        #print event.options
     return results
 
 
